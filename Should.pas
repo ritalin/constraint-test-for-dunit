@@ -7,31 +7,43 @@ uses
   SysUtils, System.Rtti;
 
 type
-  TActualValue = class;
+	TActualValue = class;
   TActualCall = class;
-	TConstraint = class;
+  IConstraint<T> = interface;
 
-
-  TConstraintOp = record
+  TValueConstraintOp = record
   private
-    FConstraint: TConstraint;
+    FConstraint: IConstraint<TActualValue>;
   public
-    class operator LogicalNot(c: TConstraintOp): TConstraintOp;
-    class operator LogicalOr(c1, c2: TConstraintOp): TConstraintOp;
-    class operator LogicalAnd(c1, c2: TConstraintOp): TConstraintOp;
+    class operator LogicalNot(c: TValueConstraintOp): TValueConstraintOp;
+    class operator LogicalOr(c1, c2: TValueConstraintOp): TValueConstraintOp;
+    class operator LogicalAnd(c1, c2: TValueConstraintOp): TValueConstraintOp;
 
-    constructor Create(c: TConstraint);
+    constructor Create(c: IConstraint<TActualValue>);
 
     procedure Evaluate(actual: TActualValue; negate: boolean);
   end;
 
+  TCallConstraintOp = record
+  private
+    FConstraint: IConstraint<TActualCall>;
+  public
+    class operator LogicalNot(c: TCallConstraintOp): TCallConstraintOp;
+    class operator LogicalOr(c1, c2: TCallConstraintOp): TCallConstraintOp;
+    class operator LogicalAnd(c1, c2: TCallConstraintOp): TCallConstraintOp;
+
+    constructor Create(c: IConstraint<TActualCall>);
+
+    procedure Evaluate(actual: TActualCall; negate: boolean);
+  end;
+
 	TActualValue = class
   type
-    TEvaluator = class
+    TEvaluator = record
     private
       FActual: TActualValue;
     public
-      procedure Should(constraint: TConstraintOp);
+      procedure Should(constraint: TValueConstraintOp);
     end;
 	private
     FFieldName: string;
@@ -40,11 +52,11 @@ type
 
 	TActualCall = class
   type
-    TEvaluator = class
+    TEvaluator = record
     private
       FActual: TActualCall;
     public
-      procedure Should(constraint: TConstraintOp);
+      procedure Should(constraint: TCallConstraintOp);
     end;
 	private
     FFieldName: string;
@@ -67,24 +79,33 @@ type
     Message: string;
   end;
 
-	TConstraint = class abstract
+	IConstraint<T> = interface
+		function Evaluate(actual: T; negate: boolean): TEvalResult;
+	end;
+
+	TValueConstraint = class(TInterfacedObject, IConstraint<TActualValue>)
 	public
 		function Evaluate(actual: TActualValue; negate: boolean): TEvalResult; virtual; abstract;
 	end;
 
-	TBaseConstraint = class(TConstraint)
+	TCallConstraint = class(TInterfacedObject, IConstraint<TActualCall>)
+	public
+		function Evaluate(actual: TActualCall; negate: boolean): TEvalResult; virtual; abstract;
+	end;
+
+	TBaseValueConstraint = class(TValueConstraint)
 	protected
 		FExpected: TValue;
-
   protected
 		procedure EvaluateInternal(actual: TValue; negate: boolean; fieldName: string; out EvalResult: TEvalResult); virtual; abstract;
 	public
 		constructor Create(expected: TValue);
+    destructor Destroy; override;
 
 		function Evaluate(actual: TActualValue; negate: boolean): TEvalResult; override;
 	end;
 
-  TDelegateConstraint = class(TBaseConstraint)
+  TDelegateConstraint = class(TBaseValueConstraint)
   type
     TDelegate = reference to procedure (actual, expected: TValue; negate: boolean; fieldName: string; var outEvalResult: TEvalResult);
   private
@@ -93,6 +114,30 @@ type
 		procedure EvaluateInternal(actual: TValue; negate: boolean; fieldName: string; out EvalResult: TEvalResult); override;
   public
     constructor Create(expected: TValue; callback: TDelegate);
+  end;
+
+  TNotConstraint<T> = class(TInterfacedObject, IConstraint<T>)
+  private
+    FConstraint: IConstraint<T>;
+  public
+    constructor Create(constraint: IConstraint<T>);
+    destructor Destroy; override;
+
+    function Evaluate(actual: T; negate: boolean): TEvalResult;
+  end;
+
+  TAndOrConstraint<T> = class(TInterfacedObject, IConstraint<T>)
+  private
+    FConstraints: TArray<IConstraint<T>>;
+    FIsAnd: boolean;
+
+    function EvaluateAsAnd(actual: T; negate: boolean): TEvalResult;
+    function EvaluateAsOr(actual: T; negate: boolean): TEvalResult;
+  public
+    constructor Create(c1, c2: IConstraint<T>; isAnd: boolean);
+    destructor Destroy; override;
+
+    function Evaluate(actual: T; negate: boolean): TEvalResult;
   end;
 
 { Eval Result Helper }
@@ -113,6 +158,7 @@ type
   type TestExceptionHandlerproc = reference to procedure (evalResult: TEvalResult);
 
   procedure RegisterExceptionHandler(handler: TestExceptionHandlerproc);
+  procedure RaiseTestError(evalResult: TEvalResult);
 
 
 { Assertion Entry Point }
@@ -141,7 +187,7 @@ begin
 	Result.FFieldName := comment;
 end;
 
-function TBaseConstraint.Evaluate(actual: TActualValue; negate: boolean): TEvalResult;
+function TBaseValueConstraint.Evaluate(actual: TActualValue; negate: boolean): TEvalResult;
 begin
   Result.Status := TEvalResult.TEvalStatus.Pass;
   Result.Message := '';
@@ -149,9 +195,14 @@ begin
   Self.EvaluateInternal(actual.FData, negate, actual.FFieldName, Result);
 end;
 
-constructor TBaseConstraint.Create(expected: TValue);
+constructor TBaseValueConstraint.Create(expected: TValue);
 begin
 	FExpected := expected;
+end;
+
+destructor TBaseValueConstraint.Destroy;
+begin
+  inherited;
 end;
 
 { TDelegateConstraint }
@@ -170,67 +221,39 @@ begin
   FDelegate(actual, FExpected, negate, fieldName, EvalResult);
 end;
 
-type
-  TNotConstraint = class(TConstraint)
-  private
-    FConstraint: TConstraint;
-
-  public
-    constructor Create(constraint: TConstraint);
-    destructor Destroy; override;
-
-    function Evaluate(actual: TActualValue; negate: boolean): TEvalResult; override;
-  end;
-
-  constructor TNotConstraint.Create(constraint: TConstraint);
+  constructor TNotConstraint<T>.Create(constraint: IConstraint<T>);
   begin
     System.Assert(Assigned(constraint));
 
     FConstraint := constraint;
   end;
 
-  destructor TNotConstraint.Destroy;
+  destructor TNotConstraint<T>.Destroy;
   begin
-    FConstraint.Free;
+    FConstraint := nil;
   end;
 
-  function TNotConstraint.Evaluate(actual: TActualValue; negate: boolean): TEvalResult;
+  function TNotConstraint<T>.Evaluate(actual: T; negate: boolean): TEvalResult;
   begin
     Result := FConstraint.Evaluate(actual, not negate);
   end;
 
-type
-  TAndOrConstraint = class(TConstraint)
-  private
-    FConstraints: TArray<TConstraint>;
-    FIsAnd: boolean;
-
-    function EvaluateAsAnd(actual: TActualValue; negate: boolean): TEvalResult;
-    function EvaluateAsOr(actual: TActualValue; negate: boolean): TEvalResult;
-  public
-    constructor Create(c1, c2: TConstraint; isAnd: boolean);
-    destructor Destroy; override;
-
-    function Evaluate(actual: TActualValue; negate: boolean): TEvalResult; override;
-
-  end;
-
-  constructor TAndOrConstraint.Create(c1, c2: TConstraint; isAnd: boolean);
+  constructor TAndOrConstraint<T>.Create(c1, c2: IConstraint<T>; isAnd: boolean);
   begin
-    FConstraints := TArray<TConstraint>.Create(c1, c2);
+    FConstraints := TArray<IConstraint<T>>.Create(c1, c2);
     FIsAnd := isAnd;
   end;
 
-  destructor TAndOrConstraint.Destroy;
+  destructor TAndOrConstraint<T>.Destroy;
   var
-    c: TConstraint;
+    c: IConstraint<T>;
   begin
-    for c in FConstraints do begin
-      c.Free;
-    end;
+//    for c in FConstraints do begin
+//      c := nil;
+//    end;
   end;
 
-  function TAndOrConstraint.Evaluate(actual: TActualValue; negate: boolean): TEvalResult;
+  function TAndOrConstraint<T>.Evaluate(actual: T; negate: boolean): TEvalResult;
   var
     isAnd: boolean;
   begin
@@ -244,9 +267,9 @@ type
     end;
   end;
 
-  function TAndOrConstraint.EvaluateAsAnd(actual: TActualValue; negate: boolean): TEvalResult;
+  function TAndOrConstraint<T>.EvaluateAsAnd(actual: T; negate: boolean): TEvalResult;
   var
-    c: TConstraint;
+    c: IConstraint<T>;
     evalResult : TEvalResult;
   begin
     for c in FConstraints do begin
@@ -258,9 +281,9 @@ type
     end;
   end;
 
-  function TAndOrConstraint.EvaluateAsOr(actual: TActualValue; negate: boolean): TEvalResult;
+  function TAndOrConstraint<T>.EvaluateAsOr(actual: T; negate: boolean): TEvalResult;
   var
-    c: TConstraint;
+    c: IConstraint<T>;
     evalResult : TEvalResult;
   begin
     for c in FConstraints do begin
@@ -275,31 +298,57 @@ type
 
 { TConstraint }
 
-constructor TConstraintOp.Create(c: TConstraint);
+constructor TValueConstraintOp.Create(c: IConstraint<TActualValue>);
 begin
   FConstraint := c;
 end;
 
-procedure TConstraintOp.Evaluate(actual: TActualValue; negate: boolean);
+procedure TValueConstraintOp.Evaluate(actual: TActualValue; negate: boolean);
 begin
   RaiseTestError(FConstraint.Evaluate(actual, negate));
 end;
 
-class operator TConstraintOp.LogicalNot(c: TConstraintOp): TConstraintOp;
+class operator TValueConstraintOp.LogicalNot(c: TValueConstraintOp): TValueConstraintOp;
 begin
-  Result.FConstraint := TNotConstraint.Create(c.FConstraint);
+  Result.FConstraint := TNotConstraint<TActualValue>.Create(c.FConstraint);
 end;
 
-class operator TConstraintOp.LogicalOr(c1, c2: TConstraintOp): TConstraintOp;
+class operator TValueConstraintOp.LogicalOr(c1, c2: TValueConstraintOp): TValueConstraintOp;
 begin
-  Result.FConstraint := TAndOrConstraint.Create(c1.FConstraint, c2.FConstraint, false);
+  Result.FConstraint := TAndOrConstraint<TActualValue>.Create(c1.FConstraint, c2.FConstraint, false);
 end;
 
-class operator TConstraintOp.LogicalAnd(c1, c2: TConstraintOp): TConstraintOp;
+class operator TValueConstraintOp.LogicalAnd(c1, c2: TValueConstraintOp): TValueConstraintOp;
 begin
-  Result.FConstraint := TAndOrConstraint.Create(c1.FConstraint, c2.FConstraint, true);
+  Result.FConstraint := TAndOrConstraint<TActualValue>.Create(c1.FConstraint, c2.FConstraint, true);
 end;
 
+{ TCallConstraintOp }
+
+constructor TCallConstraintOp.Create(c: IConstraint<TActualCall>);
+begin
+  FConstraint := c;
+end;
+
+procedure TCallConstraintOp.Evaluate(actual: TActualCall; negate: boolean);
+begin
+  RaiseTestError(FConstraint.Evaluate(actual, negate));
+end;
+
+class operator TCallConstraintOp.LogicalNot(c: TCallConstraintOp): TCallConstraintOp;
+begin
+  Result.FConstraint := TNotConstraint<TActualCall>.Create(c.FConstraint);
+end;
+
+class operator TCallConstraintOp.LogicalOr(c1, c2: TCallConstraintOp): TCallConstraintOp;
+begin
+  Result.FConstraint := TAndOrConstraint<TActualCall>.Create(c1.FConstraint, c2.FConstraint, false);
+end;
+
+class operator TCallConstraintOp.LogicalAnd(c1,c2: TCallConstraintOp): TCallConstraintOp;
+begin
+  Result.FConstraint := TAndOrConstraint<TActualCall>.Create(c1.FConstraint, c2.FConstraint, true);
+end;
 
 { TMaybeEvalResult }
 
@@ -329,33 +378,34 @@ end;
 
 function TActualValueProvider.Call<T>(supplier: TProc): TActualCall.TEvaluator;
 begin
-
+	Result.FActual := TActualCall.Create;
+  Result.FActual.FFieldName := FFieldName;
+  Result.FActual.FCall := supplier;
 end;
 
 function TActualValueProvider.Val(value: TValue): TActualValue.TEvaluator;
 begin
-	Result := TActualValue.TEvaluator.Create;
 	Result.FActual := TActualValue.Create;
   Result.FActual.FFieldName := FFieldName;
   Result.FActual.FData := value;
 end;
 
-procedure TActualValue.TEvaluator.Should(constraint: TConstraintOp);
+procedure TActualValue.TEvaluator.Should(constraint: TValueConstraintOp);
 begin
 	try
 		constraint.Evaluate(FActual, false);
 	finally
-		constraint.FConstraint.Free;
+		constraint.FConstraint := nil;
 		FActual.Free;
-		Self.Free;
 	end;
 end;
 
 { TActualCall.TEvaluator }
 
-procedure TActualCall.TEvaluator.Should(constraint: TConstraintOp);
+procedure TActualCall.TEvaluator.Should(constraint: TCallConstraintOp);
 begin
 
 end;
+
 
 end.

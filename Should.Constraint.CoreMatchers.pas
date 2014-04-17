@@ -10,19 +10,19 @@ uses
 ;
 
 
-function BeNil: TConstraintOp;
-function BeTrue: TConstraintOp;
-function EqualTo(expected: TValue): TConstraintOp;
-function GraterThan(expected: TValue): TConstraintOp;
-function GraterThanOrEqualTo(expected: TValue): TConstraintOp;
-function LessThan(expected: TValue): TConstraintOp;
-function LessThanOrEqualTo(expected: TValue): TConstraintOp;
+function BeNil: TValueConstraintOp;
+function BeTrue: TValueConstraintOp;
+function EqualTo(expected: TValue): TValueConstraintOp;
+function GraterThan(expected: TValue): TValueConstraintOp;
+function GraterThanOrEqualTo(expected: TValue): TValueConstraintOp;
+function LessThan(expected: TValue): TValueConstraintOp;
+function LessThanOrEqualTo(expected: TValue): TValueConstraintOp;
 
 implementation
 
-function BeNil: TConstraintOp;
+function BeNil: TValueConstraintOp;
 begin
-	Result := TConstraintOp.Create(TDelegateConstraint.Create(
+	Result := TValueConstraintOp.Create(TDelegateConstraint.Create(
     TValue.Empty,
     procedure (actual, expected: TValue; negate: boolean; fieldName: string; var outEvalResult: TEvalResult)
     begin
@@ -65,9 +65,9 @@ begin
   ));
 end;
 
-function BeTrue: TConstraintOp;
+function BeTrue: TValueConstraintOp;
 begin
-	Result := TConstraintOp.Create(TDelegateConstraint.Create(
+	Result := TValueConstraintOp.Create(TDelegateConstraint.Create(
     TValue.Empty,
     procedure (actual, expected: TValue; negate: boolean; fieldName: string; var outEvalResult: TEvalResult)
     begin
@@ -110,11 +110,11 @@ begin
   ));
 end;
 
-function EqualTo(expected: TValue): TConstraintOp;
+function EqualTo(expected: TValue): TValueConstraintOp;
 var
   same: boolean;
 begin
-	Result := TConstraintOp.Create(TDelegateConstraint.Create(
+	Result := TValueConstraintOp.Create(TDelegateConstraint.Create(
     expected,
     procedure (actual, expected: TValue; negate: boolean; fieldName: string; var outEvalResult: TEvalResult)
     var
@@ -186,9 +186,9 @@ begin
   ;
 end;
 
-function GraterThan(expected: TValue): TConstraintOp;
+function GraterThan(expected: TValue): TValueConstraintOp;
 begin
-	Result := TConstraintOp.Create(TDelegateConstraint.Create(
+	Result := TValueConstraintOp.Create(TDelegateConstraint.Create(
     expected,
     procedure (actual, expected: TValue; negate: boolean; fieldName: string; var outEvalResult: TEvalResult)
     begin
@@ -219,9 +219,9 @@ begin
   ));
 end;
 
-function GraterThanOrEqualTo(expected: TValue): TConstraintOp;
+function GraterThanOrEqualTo(expected: TValue): TValueConstraintOp;
 begin
-	Result := TConstraintOp.Create(TDelegateConstraint.Create(
+	Result := TValueConstraintOp.Create(TDelegateConstraint.Create(
     expected,
     procedure (actual, expected: TValue; negate: boolean; fieldName: string; var outEvalResult: TEvalResult)
     begin
@@ -252,9 +252,9 @@ begin
   ));
 end;
 
-function LessThan(expected: TValue): TConstraintOp;
+function LessThan(expected: TValue): TValueConstraintOp;
 begin
-	Result := TConstraintOp.Create(TDelegateConstraint.Create(
+	Result := TValueConstraintOp.Create(TDelegateConstraint.Create(
     expected,
     procedure (actual, expected: TValue; negate: boolean; fieldName: string; var outEvalResult: TEvalResult)
     begin
@@ -285,9 +285,9 @@ begin
   ));
 end;
 
-function LessThanOrEqualTo(expected: TValue): TConstraintOp;
+function LessThanOrEqualTo(expected: TValue): TValueConstraintOp;
 begin
-	Result := TConstraintOp.Create(TDelegateConstraint.Create(
+	Result := TValueConstraintOp.Create(TDelegateConstraint.Create(
     expected,
     procedure (actual, expected: TValue; negate: boolean; fieldName: string; var outEvalResult: TEvalResult)
     begin
