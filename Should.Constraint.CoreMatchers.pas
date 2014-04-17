@@ -18,11 +18,15 @@ function GraterThanOrEqualTo(expected: TValue): TValueConstraintOp;
 function LessThan(expected: TValue): TValueConstraintOp;
 function LessThanOrEqualTo(expected: TValue): TValueConstraintOp;
 
+type ExceptionClass = class of Exception;
+
+function ThrowException(exType: ExceptionClass): TCallConstraintOp;
+
 implementation
 
 function BeNil: TValueConstraintOp;
 begin
-	Result := TValueConstraintOp.Create(TDelegateConstraint.Create(
+	Result := TValueConstraintOp.Create(TDelegateValueConstraint.Create(
     TValue.Empty,
     procedure (actual, expected: TValue; negate: boolean; fieldName: string; var outEvalResult: TEvalResult)
     begin
@@ -67,7 +71,7 @@ end;
 
 function BeTrue: TValueConstraintOp;
 begin
-	Result := TValueConstraintOp.Create(TDelegateConstraint.Create(
+	Result := TValueConstraintOp.Create(TDelegateValueConstraint.Create(
     TValue.Empty,
     procedure (actual, expected: TValue; negate: boolean; fieldName: string; var outEvalResult: TEvalResult)
     begin
@@ -114,7 +118,7 @@ function EqualTo(expected: TValue): TValueConstraintOp;
 var
   same: boolean;
 begin
-	Result := TValueConstraintOp.Create(TDelegateConstraint.Create(
+	Result := TValueConstraintOp.Create(TDelegateValueConstraint.Create(
     expected,
     procedure (actual, expected: TValue; negate: boolean; fieldName: string; var outEvalResult: TEvalResult)
     var
@@ -188,7 +192,7 @@ end;
 
 function GraterThan(expected: TValue): TValueConstraintOp;
 begin
-	Result := TValueConstraintOp.Create(TDelegateConstraint.Create(
+	Result := TValueConstraintOp.Create(TDelegateValueConstraint.Create(
     expected,
     procedure (actual, expected: TValue; negate: boolean; fieldName: string; var outEvalResult: TEvalResult)
     begin
@@ -221,7 +225,7 @@ end;
 
 function GraterThanOrEqualTo(expected: TValue): TValueConstraintOp;
 begin
-	Result := TValueConstraintOp.Create(TDelegateConstraint.Create(
+	Result := TValueConstraintOp.Create(TDelegateValueConstraint.Create(
     expected,
     procedure (actual, expected: TValue; negate: boolean; fieldName: string; var outEvalResult: TEvalResult)
     begin
@@ -254,7 +258,7 @@ end;
 
 function LessThan(expected: TValue): TValueConstraintOp;
 begin
-	Result := TValueConstraintOp.Create(TDelegateConstraint.Create(
+	Result := TValueConstraintOp.Create(TDelegateValueConstraint.Create(
     expected,
     procedure (actual, expected: TValue; negate: boolean; fieldName: string; var outEvalResult: TEvalResult)
     begin
@@ -287,7 +291,7 @@ end;
 
 function LessThanOrEqualTo(expected: TValue): TValueConstraintOp;
 begin
-	Result := TValueConstraintOp.Create(TDelegateConstraint.Create(
+	Result := TValueConstraintOp.Create(TDelegateValueConstraint.Create(
     expected,
     procedure (actual, expected: TValue; negate: boolean; fieldName: string; var outEvalResult: TEvalResult)
     begin
@@ -313,6 +317,41 @@ begin
           end
         )
         .Result
+    end
+  ));
+end;
+
+function ThrowException(exType: ExceptionClass): TCallConstraintOp;
+var
+  n: string;
+  msg: string;
+begin
+  Result := TCallConstraintOp.Create(TDelegateCallConstraint.Create(
+    procedure (actual: TProc; negate: boolean; fieldName: string; var outEvalResult: TEvalResult)
+    begin
+      try
+        actual;
+
+        if negate then begin
+          outEvalResult.Status := TEvalResult.TEvalStatus.Pass;
+          Exit;
+        end;
+        msg := 'This call must be thrown exception.';
+      except
+        on ex: Exception do begin
+          if (ex is exType) or negate then begin
+            outEvalResult.Status := TEvalResult.TEvalStatus.Pass;
+            Exit;
+          end
+          else begin
+            if negate then n:= '' else n:='not';
+            msg := Format('This call (%s) was %x thrown specified exception. '#10#9'-expected: %s', [fieldName, n, TValue.From(exType).ToString]);
+          end;
+        end;
+      end;
+
+      outEvalResult.Status := TEvalResult.TEvalStatus.Falure;
+      outEvalResult.Message := msg;
     end
   ));
 end;

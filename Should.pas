@@ -68,7 +68,7 @@ type
     FFieldName: string;
 	public
 		function Val(value: TValue): TActualValue.TEvaluator;
-    function Call<T>(supplier: TProc): TActualCall.TEvaluator;
+    function Call(supplier: TProc): TActualCall.TEvaluator;
   end;
 
   TEvalResult = record
@@ -105,7 +105,7 @@ type
 		function Evaluate(actual: TActualValue; negate: boolean): TEvalResult; override;
 	end;
 
-  TDelegateConstraint = class(TBaseValueConstraint)
+  TDelegateValueConstraint = class(TBaseValueConstraint)
   type
     TDelegate = reference to procedure (actual, expected: TValue; negate: boolean; fieldName: string; var outEvalResult: TEvalResult);
   private
@@ -114,6 +114,17 @@ type
 		procedure EvaluateInternal(actual: TValue; negate: boolean; fieldName: string; out EvalResult: TEvalResult); override;
   public
     constructor Create(expected: TValue; callback: TDelegate);
+  end;
+
+  TDelegateCallConstraint = class(TCallConstraint)
+  type
+    TDelegate = reference to procedure (actual: TProc; negate: boolean; fieldName: string; var outEvalResult: TEvalResult);
+  private
+    FDelegate: TDelegate;
+  public
+    constructor Create(callback: TDelegate);
+
+		function Evaluate(actual: TActualCall; negate: boolean): TEvalResult; override;
   end;
 
   TNotConstraint<T> = class(TInterfacedObject, IConstraint<T>)
@@ -207,7 +218,7 @@ end;
 
 { TDelegateConstraint }
 
-constructor TDelegateConstraint.Create(expected: TValue; callback: TDelegate);
+constructor TDelegateValueConstraint.Create(expected: TValue; callback: TDelegate);
 begin
   inherited Create(expected);
 
@@ -216,9 +227,23 @@ begin
   FDelegate := callback;
 end;
 
-procedure TDelegateConstraint.EvaluateInternal(actual: TValue; negate: boolean; fieldName: string; out EvalResult: TEvalResult);
+procedure TDelegateValueConstraint.EvaluateInternal(actual: TValue; negate: boolean; fieldName: string; out EvalResult: TEvalResult);
 begin
   FDelegate(actual, FExpected, negate, fieldName, EvalResult);
+end;
+
+{ TDelegateCallConstraint }
+
+constructor TDelegateCallConstraint.Create(callback: TDelegate);
+begin
+  System.Assert(Assigned(callback));
+
+  FDelegate := callback;
+end;
+
+function TDelegateCallConstraint.Evaluate(actual: TActualCall; negate: boolean): TEvalResult;
+begin
+   FDelegate(actual.FCall, negate, actual.FFieldName, Result);
 end;
 
   constructor TNotConstraint<T>.Create(constraint: IConstraint<T>);
@@ -376,7 +401,7 @@ end;
 
 { TActualValueProvider }
 
-function TActualValueProvider.Call<T>(supplier: TProc): TActualCall.TEvaluator;
+function TActualValueProvider.Call(supplier: TProc): TActualCall.TEvaluator;
 begin
 	Result.FActual := TActualCall.Create;
   Result.FActual.FFieldName := FFieldName;
@@ -404,8 +429,12 @@ end;
 
 procedure TActualCall.TEvaluator.Should(constraint: TCallConstraintOp);
 begin
-
+	try
+		constraint.Evaluate(FActual, false);
+	finally
+		constraint.FConstraint := nil;
+		FActual.Free;
+	end;
 end;
-
 
 end.

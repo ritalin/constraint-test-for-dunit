@@ -2,11 +2,24 @@ unit TestExceptionHandler.DUnitX;
 
 interface
 
-{$DEFINE USE_DUNITX}
+implementation
 
 uses
-  TestExceptionHandler;
+  Should, DUnitX.TestFramework;
 
-implementation
+
+initialization
+
+Should.RegisterExceptionHandler(
+  procedure (evalResult: TEvalResult)
+  begin
+    case (evalResult.Status) of
+      TEvalResult.TEvalStatus.Falure:
+        raise DUnitX.TestFramework.ETestFailure.Create(evalResult.Message);
+
+      TEvalResult.TEvalStatus.Fatal:
+        raise DUnitX.TestFramework.ETestFailure.Create(evalResult.Message);
+    end;
+  end);
 
 end.
