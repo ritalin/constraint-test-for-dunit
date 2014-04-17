@@ -7,28 +7,14 @@ uses
   SysUtils, System.Rtti;
 
 type
-	TTestEvaluator = class;
-	TActualValue = class(TObject)
-	private
-    FFieldName: string;
-		FData: TValue;
-	public
-		function Val(value: TValue): TTestEvaluator;
-	end;
-
-  TEvalResult = record
-  type
-    TEvalStatus = (Pass, Falure, Fatal);
-  public
-    Status: TEvalStatus;
-    Message: string;
-  end;
-
+  TActualValue = class;
+  TActualCall = class;
 	TConstraint = class;
+
+
   TConstraintOp = record
   private
     FConstraint: TConstraint;
-
   public
     class operator LogicalNot(c: TConstraintOp): TConstraintOp;
     class operator LogicalOr(c1, c2: TConstraintOp): TConstraintOp;
@@ -39,13 +25,47 @@ type
     procedure Evaluate(actual: TActualValue; negate: boolean);
   end;
 
-	TTestEvaluator = class
+	TActualValue = class
+  type
+    TEvaluator = class
+    private
+      FActual: TActualValue;
+    public
+      procedure Should(constraint: TConstraintOp);
+    end;
 	private
-		FActual: TActualValue;
-
-	public
-		procedure Should(constraint: TConstraintOp);
+    FFieldName: string;
+		FData: TValue;
 	end;
+
+	TActualCall = class
+  type
+    TEvaluator = class
+    private
+      FActual: TActualCall;
+    public
+      procedure Should(constraint: TConstraintOp);
+    end;
+	private
+    FFieldName: string;
+		FCall: TProc;
+	end;
+
+	TActualValueProvider = record
+  private
+    FFieldName: string;
+	public
+		function Val(value: TValue): TActualValue.TEvaluator;
+    function Call<T>(supplier: TProc): TActualCall.TEvaluator;
+  end;
+
+  TEvalResult = record
+  type
+    TEvalStatus = (Pass, Falure, Fatal);
+  public
+    Status: TEvalStatus;
+    Message: string;
+  end;
 
 	TConstraint = class abstract
 	public
@@ -97,7 +117,7 @@ type
 
 { Assertion Entry Point }
 
-function Its(comment: string): TActualValue;
+function Its(comment: string): TActualValueProvider;
 
 implementation
 
@@ -116,29 +136,9 @@ begin
   gExceptionHandler(evalResult);
 end;
 
-function Its(comment: string): TActualValue;
+function Its(comment: string): TActualValueProvider;
 begin
-	Result := TActualValue.Create;
 	Result.FFieldName := comment;
-end;
-
-function TActualValue.Val(value: TValue): TTestEvaluator;
-begin
-	FData := value;
-
-	Result := TTestEvaluator.Create;
-	Result.FActual := Self;
-end;
-
-procedure TTestEvaluator.Should(constraint: TConstraintOp);
-begin
-	try
-		constraint.Evaluate(FActual, false);
-	finally
-		constraint.FConstraint.Free;
-		FActual.Free;
-		Self.Free;
-	end;
 end;
 
 function TBaseConstraint.Evaluate(actual: TActualValue; negate: boolean): TEvalResult;
@@ -323,6 +323,39 @@ begin
   else begin
     Result := Self;
   end;
+end;
+
+{ TActualValueProvider }
+
+function TActualValueProvider.Call<T>(supplier: TProc): TActualCall.TEvaluator;
+begin
+
+end;
+
+function TActualValueProvider.Val(value: TValue): TActualValue.TEvaluator;
+begin
+	Result := TActualValue.TEvaluator.Create;
+	Result.FActual := TActualValue.Create;
+  Result.FActual.FFieldName := FFieldName;
+  Result.FActual.FData := value;
+end;
+
+procedure TActualValue.TEvaluator.Should(constraint: TConstraintOp);
+begin
+	try
+		constraint.Evaluate(FActual, false);
+	finally
+		constraint.FConstraint.Free;
+		FActual.Free;
+		Self.Free;
+	end;
+end;
+
+{ TActualCall.TEvaluator }
+
+procedure TActualCall.TEvaluator.Should(constraint: TConstraintOp);
+begin
+
 end;
 
 end.
