@@ -4,7 +4,7 @@ interface
 
 uses
   System.SysUtils,
-  System.Rtti,
+  System.Rtti, System.TypInfo,
   System.Generics.Defaults,
   Should
 ;
@@ -34,7 +34,7 @@ begin
         TMaybeEvalResult.Create(
           function: TEvalResult
           begin
-            if not (actual.IsObject or actual.IsClass) then begin
+            if (not (actual.Kind in [tkClass, tkInterface])) and (not actual.IsClass) then begin
               Result.Status := TEvalResult.TEvalStatus.Fatal;
               Result.Message := Format('A Pointer must be passed. [%s:%s]', [fieldName, 'actual']);
             end
@@ -51,7 +51,7 @@ begin
           begin
             Result.Status := TEvalResult.TEvalStatus.Pass;
 
-            if (not actual.IsEmpty) and (not negate) then begin
+            if actual.IsEmpty = negate then begin
               if negate then n:= '' else n:='not';
 
               msg := Format('The actual value (%s) was %s nil.'#10#9'-actual: %s', [
@@ -81,7 +81,7 @@ begin
           begin
             if not actual.IsType<boolean> then begin
               Result.Status := TEvalResult.TEvalStatus.Fatal;
-              Result.Message := Format('A Pointer must be passed. [%s:%s]', [fieldName, 'actual']);
+              Result.Message := Format('A boolean value must be passed. [%s:%s]', [fieldName, 'actual']);
             end
             else begin
               Result.Status := TEvalResult.TEvalStatus.Pass;
@@ -96,7 +96,7 @@ begin
           begin
             Result.Status := TEvalResult.TEvalStatus.Pass;
 
-            if (not actual.AsType<boolean>) and (not negate) then begin
+            if actual.AsType<boolean> = negate then begin
               if negate then n:= '' else n:='not';
 
               msg := Format('The actual value (%s) was %s true.'#10#9'-actual: %s', [
@@ -135,7 +135,7 @@ begin
         same := TEqualityComparer<TValue>.Default.Equals(actual, expected);
       end;
 
-      if (not same) and (not negate) then begin
+      if same = negate then begin
         if negate then n:= '' else n:='not';
 
         msg := Format('The actual value (%s) was %s equal to a expected value.'#10#9'-actual: %s'#10#9'-expected: %s', [
@@ -151,7 +151,7 @@ end;
 
 function ValidateOrdinaryValue(val: TValue; comments: array of const): TEvalResult;
 begin
-  if (val.IsObject or val.IsClass or val.IsArray or val.IsEmpty) then begin
+  if ((val.Kind in [tkClass, tkInterface]) or val.IsClass or val.IsArray or val.IsEmpty) then begin
     Result.Status := TEvalResult.TEvalStatus.Fatal;
     Result.Message := Format('Ordinary value must be passed. [%s:%s]', comments);
   end
@@ -205,7 +205,7 @@ begin
           begin
             Result.Status := TEvalResult.TEvalStatus.Pass;
 
-            if (compared <= 0) and (not negate) then begin
+            if (compared > 0) = negate then begin
               if negate then n:= '' else n:='not';
 
               msg := Format('The actual value (%s) was %s grater than a expected value.'#10#9'-actual: %s'#10#9'-expected: %s', [
@@ -238,7 +238,7 @@ begin
           begin
             Result.Status := TEvalResult.TEvalStatus.Pass;
 
-            if (compared < 0) and (not negate) then begin
+            if (compared >= 0) = negate then begin
               if negate then n:= '' else n:='not';
 
               msg := Format('The actual value (%s) was %s greater than or %s equal to a expected value.'#10#9'-actual: %s'#10#9'-expected: %s', [
@@ -271,7 +271,7 @@ begin
           begin
             Result.Status := TEvalResult.TEvalStatus.Pass;
 
-            if (compared >= 0) and (not negate) then begin
+            if (compared < 0) = negate then begin
               if negate then n:= '' else n:='not';
 
               msg := Format('The actual value (%s) was %s less than a expected value.'#10#9'-actual: %s'#10#9'-expected: %s', [
@@ -304,7 +304,7 @@ begin
           begin
             Result.Status := TEvalResult.TEvalStatus.Pass;
 
-            if (compared > 0) and (not negate) then begin
+            if (compared >= 0) = negate then begin
               if negate then n:= '' else n:='not';
 
               msg := Format('The actual value (%s) was %s less than or %s equal to a expected value.'#10#9'-actual: %s'#10#9'-expected: %s', [
@@ -339,13 +339,13 @@ begin
         msg := 'This call must be thrown exception.';
       except
         on ex: Exception do begin
-          if (ex is exType) or negate then begin
-            outEvalResult.Status := TEvalResult.TEvalStatus.Pass;
-            Exit;
-          end
-          else begin
+          if (ex is exType) = negate then begin
             if negate then n:= '' else n:='not';
             msg := Format('This call (%s) was %x thrown specified exception. '#10#9'-expected: %s', [fieldName, n, TValue.From(exType).ToString]);
+          end
+          else begin
+            outEvalResult.Status := TEvalResult.TEvalStatus.Pass;
+            Exit;
           end;
         end;
       end;
