@@ -12,11 +12,11 @@ uses
 
 function BeNil: TValueConstraintOp;
 function BeTrue: TValueConstraintOp;
-function EqualTo(expected: TValue): TValueConstraintOp;
-function GraterThan(expected: TValue): TValueConstraintOp;
-function GraterThanOrEqualTo(expected: TValue): TValueConstraintOp;
-function LessThan(expected: TValue): TValueConstraintOp;
-function LessThanOrEqualTo(expected: TValue): TValueConstraintOp;
+function BeEqualTo(expected: TValue): TValueConstraintOp;
+function BeGraterThan(expected: TValue): TValueConstraintOp;
+function BeGraterThanOrEqualTo(expected: TValue): TValueConstraintOp;
+function BeLessThan(expected: TValue): TValueConstraintOp;
+function BeLessThanOrEqualTo(expected: TValue): TValueConstraintOp;
 
 type ExceptionClass = class of Exception;
 
@@ -99,7 +99,7 @@ begin
             if actual.AsType<boolean> = negate then begin
               if negate then n:= '' else n:='not';
 
-              msg := Format('The actual value (%s) was %s true.'#10#9'-actual: %s', [
+              msg := Format('The actual value (%s) was %s true.', [
                 fieldName, n, actual.ToString, expected.ToString
               ]);
 
@@ -114,7 +114,7 @@ begin
   ));
 end;
 
-function EqualTo(expected: TValue): TValueConstraintOp;
+function BeEqualTo(expected: TValue): TValueConstraintOp;
 var
   same: boolean;
 begin
@@ -132,7 +132,7 @@ begin
         same := TEqualityComparer<TValue>.Default.Equals(actual.AsObject, expected.AsObject);
       end
       else begin
-        same := TEqualityComparer<TValue>.Default.Equals(actual, expected);
+        same := TEqualityComparer<string>.Default.Equals(actual.ToString(), expected.ToString());
       end;
 
       if same = negate then begin
@@ -190,7 +190,7 @@ begin
   ;
 end;
 
-function GraterThan(expected: TValue): TValueConstraintOp;
+function BeGraterThan(expected: TValue): TValueConstraintOp;
 begin
 	Result := TValueConstraintOp.Create(TDelegateValueConstraint.Create(
     expected,
@@ -223,7 +223,7 @@ begin
   ));
 end;
 
-function GraterThanOrEqualTo(expected: TValue): TValueConstraintOp;
+function BeGraterThanOrEqualTo(expected: TValue): TValueConstraintOp;
 begin
 	Result := TValueConstraintOp.Create(TDelegateValueConstraint.Create(
     expected,
@@ -256,7 +256,7 @@ begin
   ));
 end;
 
-function LessThan(expected: TValue): TValueConstraintOp;
+function BeLessThan(expected: TValue): TValueConstraintOp;
 begin
 	Result := TValueConstraintOp.Create(TDelegateValueConstraint.Create(
     expected,
@@ -289,7 +289,7 @@ begin
   ));
 end;
 
-function LessThanOrEqualTo(expected: TValue): TValueConstraintOp;
+function BeLessThanOrEqualTo(expected: TValue): TValueConstraintOp;
 begin
 	Result := TValueConstraintOp.Create(TDelegateValueConstraint.Create(
     expected,
