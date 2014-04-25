@@ -67,7 +67,7 @@ type
   private
     FFieldName: string;
 	public
-		function Val(value: TValue): TActualValue.TEvaluator;
+		function Val<T>(value: T): TActualValue.TEvaluator;
     function Call(supplier: TProc): TActualCall.TEvaluator;
   end;
 
@@ -408,11 +408,11 @@ begin
   Result.FActual.FCall := supplier;
 end;
 
-function TActualValueProvider.Val(value: TValue): TActualValue.TEvaluator;
+function TActualValueProvider.Val<T>(value: T): TActualValue.TEvaluator;
 begin
 	Result.FActual := TActualValue.Create;
   Result.FActual.FFieldName := FFieldName;
-  Result.FActual.FData := value;
+  Result.FActual.FData := TValue.From(value);
 end;
 
 procedure TActualValue.TEvaluator.Should(constraint: TValueConstraintOp);
