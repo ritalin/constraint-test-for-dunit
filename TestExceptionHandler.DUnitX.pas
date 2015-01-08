@@ -7,7 +7,6 @@ implementation
 uses
   Should, DUnitX.TestFramework;
 
-
 initialization
 
 Should.RegisterExceptionHandler(

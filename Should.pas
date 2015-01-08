@@ -4,7 +4,7 @@ interface
 
 uses
 //	Variants,
-  SysUtils, System.Rtti;
+  SysUtils, System.Rtti, System.TypInfo;
 
 type
 	TActualValue = class;
@@ -37,7 +37,7 @@ type
     procedure Evaluate(actual: TActualCall; negate: boolean);
   end;
 
-	TActualValue = class
+	TActualValue = class(TObject)
   type
     TEvaluator = record
     private
@@ -67,7 +67,8 @@ type
   private
     FFieldName: string;
 	public
-		function Val<T>(value: T): TActualValue.TEvaluator;
+		function Val<T>(value: T): TActualValue.TEvaluator; overload;
+		function Val(value: TValue): TActualValue.TEvaluator; overload;
     function Call(supplier: TProc): TActualCall.TEvaluator;
   end;
 
@@ -174,7 +175,8 @@ type
 
 { Assertion Entry Point }
 
-function Its(comment: string): TActualValueProvider;
+function Its(comment: string): TActualValueProvider; overload;
+function Its(comment: string; args: array of const): TActualValueProvider; overload;
 
 implementation
 
@@ -188,7 +190,7 @@ end;
 
 procedure RaiseTestError(evalResult: TEvalResult);
 begin
-  System.Assert(Assigned(gExceptionHandler));
+  System.Assert(Assigned(gExceptionHandler), 'テスト例外ハンドラが設定されていない');
 
   gExceptionHandler(evalResult);
 end;
@@ -196,6 +198,11 @@ end;
 function Its(comment: string): TActualValueProvider;
 begin
 	Result.FFieldName := comment;
+end;
+
+function Its(comment: string; args: array of const): TActualValueProvider;
+begin
+  Result := Its(Format(comment, args));
 end;
 
 function TBaseValueConstraint.Evaluate(actual: TActualValue; negate: boolean): TEvalResult;
@@ -408,11 +415,29 @@ begin
   Result.FActual.FCall := supplier;
 end;
 
-function TActualValueProvider.Val<T>(value: T): TActualValue.TEvaluator;
+function TActualValueProvider.Val(value: TValue): TActualValue.TEvaluator;
 begin
 	Result.FActual := TActualValue.Create;
   Result.FActual.FFieldName := FFieldName;
-  Result.FActual.FData := TValue.From(value);
+
+  Result.FActual.FData := value;
+end;
+
+function TActualValueProvider.Val<T>(value: T): TActualValue.TEvaluator;
+var
+  valueType, refType: PTypeInfo;
+begin
+	Result.FActual := TActualValue.Create;
+  Result.FActual.FFieldName := FFieldName;
+
+  valueType := System.TypeInfo(T);
+  refType := TypeInfo(TValue);
+  if valueType <> refType then begin
+    Result := Val(TValue.From(value));
+  end
+  else begin
+    Result := Val<T>(value);
+  end;
 end;
 
 procedure TActualValue.TEvaluator.Should(constraint: TValueConstraintOp);
